@@ -1,28 +1,35 @@
-from datetime import datetime
-from hashlib import sha1
-
 from django.contrib.auth.models import User
 from django.test import TestCase
 
 from actiontoken.models import Token, Rule, Field
 import app_settings
 
-class ActionTokenTests(TestCase):
-  def setUp(self):
-    user_test = User.objects.create(username='TESTUSERNAME')
-    rule_readuser = Rule.objects.create(model='django.contrib.auth.models.User')
-    Token.objects.create(
-      token=sha1('1').hexdigest(),
-      expires=datetime.now() + app_settings.DEFAULT_EXPIRATION,
-      user=user_test,
-      rule=rule_readuser)
-    Token.objects.create(
-      token=sha1('2').hexdigest(),
-      expires=datetime.now() + app_settings.DEFAULT_EXPIRATION,
-      user=user_test,
-      rule=rule_readuser)
-  
-  def test_token_create(self):
-    self.assertTrue(Token.objects.get(token=sha1('1').hexdigest()))
+class ActionTokenTests(TestCase): 
+  # simple sanity check tests
+  def test_rule_create(self):
+    rule = Rule.objects.create(
+      action=Rule.CREATE,
+      model='%s.%s' % (User.__module__, User.__name__))
+    self.assertTrue(rule)
+    self.assertTrue(rule.is_class())
 
-  #def test_token_valid_rule(self):
+  def test_field_create(self):
+    rule = Rule.objects.create(
+      action=Rule.UPDATE,
+      model='%s.%s' % (User.__module__, User.__name__))
+    field = Field.objects.create(
+      name='username',
+      rule=rule)
+    self.assertTrue(field)
+    self.assertTrue(field.is_field())
+    self.assertTrue(field.is_valid_for_rule())
+
+  def test_token_create_simple(self):
+    token = Token.objects.create(
+      user=User.objects.create(username='TEST'),
+      rule=Rule.objects.create(model='%s.%s' % (User.__module__, User.__name__)))
+    self.assertTrue(token)
+    self.assertTrue(token.token)
+    self.assertTrue(token.expires)
+
+  # TODO: test more complex relationships

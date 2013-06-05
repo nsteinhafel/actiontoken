@@ -79,5 +79,12 @@ class Token(models.Model):
   def can_delete(self, model):
     return self.rule.action == Rule.DELETE and self.rule.get_class() == model
 
+  def save(self, *args, **kwargs):
+    if not self.token:
+      self.__create_token()
+    if not self.expires:
+      self.__set_expiration()
+    super(Token, self).save(*args, **kwargs)
+
   def __unicode__(self):
     return 'Token %s for user %s defined by rule \'%s\' expires on %s' % (self.token, self.user, self.rule, self.expires)
