@@ -1,0 +1,9 @@
+todo:
+- allow rule groups rather than a 1-to-1 token-to-rule relationship
+- check fields (if any) and permissions (on model save?)
+  . C -> None to Something
+  . R -> (can we really validate this w/out implementer's action?)
+  . U -> Something -> Something different
+  . D -> Something -> None
+- add optional primary key for entity on Rule that is checked on read/update/delete (should throw error on create) to only give access to one object
+  . None here gives full control over model?
