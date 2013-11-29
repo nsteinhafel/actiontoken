@@ -22,16 +22,16 @@ class Token(models.Model):
     self.expires = datetime.now() + app_settings.DEFAULT_EXPIRATION
 
   def can_create(self, model, field=None):
-    return any(rule.can_create(model, field) for rule in Rule.objects.filter(token=self))
+    return any(r.can_create(model, field) for r in Rule.objects.filter(token=self))
 
   def can_read(self, model, field=None):
-    return any(rule.can_create(model, field) for rule in Rule.objects.filter(token=self))
+    return any(r.can_create(model, field) for r in Rule.objects.filter(token=self))
 
   def can_udpate(self, model, field=None):
-    return any(rule.can_create(model, field) for rule in Rule.objects.filter(token=self))
+    return any(r.can_create(model, field) for r in Rule.objects.filter(token=self))
 
   def can_delete(self, model, field=None):
-    return any(rule.can_create(model, field) for rule in Rule.objects.filter(token=self))
+    return any(r.can_create(model, field) for r in Rule.objects.filter(token=self))
 
 
   def save(self, *args, **kwargs):
@@ -83,7 +83,7 @@ class Rule(models.Model):
     return getattr(__import__(import_dict[0], fromlist=[import_dict[1]]), import_dict[1])
 
   def __unicode__(self):
-    return 'Rule %s (%s)' % (self.model, ', '.join(unicode(a) for a in Action.objects.filter(rule=self)))
+    return 'Rule for %s (%s)' % (self.model, ', '.join(unicode(a) for a in Action.objects.filter(rule=self)))
 
 class Field(models.Model):
   name = models.TextField()
@@ -113,27 +113,34 @@ class Action(models.Model):
   UPDATE  = 'U'
   DELETE  = 'D'
   ACTIONS = (
-    (CREATE,  'create'),
-    (READ,    'read'), 
-    (UPDATE,  'update'), 
-    (DELETE,  'delete'),
+    (CREATE,  'Create'),
+    (READ,    'Read'), 
+    (UPDATE,  'Update'), 
+    (DELETE,  'Delete'),
   )
   
   action = models.CharField(max_length=1, choices=ACTIONS, default=READ)
-  rule = models.ForeignKey(Rule)
-  field = models.ForeignKey(Field)
+  rule = models.ForeignKey(Rule, blank=True, null=True)
+  field = models.ForeignKey(Field, blank=True, null=True)
+
+  def has_valid_action(self):
+    return self.action in [a[0] for a in Action.ACTIONS]
+
+  # there can only be one target and action must have a target
+  def has_valid_target(self):
+    return (self.rule != None) != (self.field != None)
 
   def is_create(self):
-    return self.action == CREATE
+    return self.action == Action.CREATE
 
   def is_read(self):
-    return self.action == READ
+    return self.action == Action.READ
 
   def is_update(self):
-    return self.action == UPDATE
+    return self.action == Action.UPDATE
 
   def is_delete(self):
-    return self.action == DELETE
+    return self.action == Action.DELETE
 
   def __unicode__(self):
-    return dict(ACTIONS)[action]
+    return dict(Action.ACTIONS)[self.action]
