@@ -7,10 +7,109 @@ from django.db import models
 
 import app_settings
 
+class Token(models.Model):
+  token = models.CharField(max_length=40)
+  expires = models.DateTimeField()
+  user = models.ForeignKey(User) # user performing action
+  
+  # use on save if no token assigned
+  def __create_token(self):
+    self.token = sha1(str(datetime.now()) + str(random())).hexdigest()
+
+  # use on save if no expiration assigned
+  def __set_expiration(self):
+    self.expires = datetime.now() + app_settings.DEFAULT_EXPIRATION
+
+  def can_create(self, model, field=None):
+    return any(rule.can_create(model, field) for rule in Rule.objects.filter(token=self))
+
+  def can_read(self, model, field=None):
+    return any(rule.can_create(model, field) for rule in Rule.objects.filter(token=self))
+
+  def can_udpate(self, model, field=None):
+    return any(rule.can_create(model, field) for rule in Rule.objects.filter(token=self))
+
+  def can_delete(self, model, field=None):
+    return any(rule.can_create(model, field) for rule in Rule.objects.filter(token=self))
+
+
+  def save(self, *args, **kwargs):
+    if not self.token:
+      self.__create_token()
+    if not self.expires:
+      self.__set_expiration()
+    super(Token, self).save(*args, **kwargs)
+
+  def __unicode__(self):
+    return 'Token %s for user %s defined by rules \'%s\' expires on %s' % (self.token,
+      self.user, 
+      ' '.join(unicode(rule) for rule in Rule.objects.filter(token=self)),
+      self.expires)
+
 class InvalidModelName(Exception):
   pass
 
 class Rule(models.Model):
+  model = models.TextField()
+  token = models.ForeignKey(Token)
+
+  def can_create(self, model, field=None):
+    if field:
+      return any(field.can_create() for field in Field.objects.filter(rule=self).filter(name=field))
+    return self.rule.get_class() == model and any(action.is_create() for action in Action.objects.filter(rule=self))
+
+  def can_read(self, model, field=None):
+    if field:
+      return any(field.can_read() for field in field.objects.filter(rule=self).filter(name=field))
+    return self.rule.get_class() == model and any(action.is_read() for action in Action.objects.filter(rule=self))
+
+  def can_udpate(self, model, field=None):
+    if field:
+      return any(field.can_update() for field in field.objects.filter(rule=self).filter(name=field))
+    return self.rule.get_class() == model and any(action.is_update() for action in action.objects.filter(rule=self))
+
+  def can_delete(self, model, field=None):
+    if field:
+      return any(field.can_delete() for field in field.objects.filter(rule=self).filter(name=field))
+    return self.rule.get_class() == model and any(action.is_delete() for action in action.objects.filter(rule=self))
+
+
+  def is_class(self):
+    return isinstance(self.get_class(), type)
+
+  # revisit this later
+  def get_class(self):
+    import_dict = self.model.rsplit('.', 1)
+    if not len(import_dict) == 2:
+      raise InvalidModelName('Model could not be imported (is it fully qualified?).')
+    return getattr(__import__(import_dict[0], fromlist=[import_dict[1]]), import_dict[1])
+
+  def __unicode__(self):
+    return '%s' % self.model
+
+class Field(models.Model):
+  name = models.TextField()
+  rule = models.ForeignKey(Rule)
+
+  def can_create(self):
+    return any(action.is_create() for action in Action.objects.filter(field=self))
+
+  def can_read(self):
+    return any(action.is_read() for action in Action.objects.filter(field=self))
+
+  def can_udpate(self):
+    return any(action.is_update() for action in action.objects.filter(field=self))
+
+  def can_delete(self):
+    return any(action.is_delete() for action in action.objects.filter(field=self))
+
+  def is_field(self):
+    return self.name in map(lambda x: x.name, self.rule.get_class()._meta.fields)
+
+  def __unicode__(self):
+    return 'field(%s on %s)' % (' '.join(unicode(action) for action in action.objects.filter(field=self)), self.name)
+
+class Action():
   CREATE  = 'C'
   READ    = 'R'
   UPDATE  = 'U'
@@ -21,70 +120,22 @@ class Rule(models.Model):
     (UPDATE,  'update'), 
     (DELETE,  'delete'),
   )
-
+  
   action = models.CharField(max_length=1, choices=ACTIONS, default=READ)
-  model = models.CharField(max_length=255)
-
-  def is_class(self):
-    return isinstance(self.get_class(), type)
-
-  def get_class(self):
-    import_dict = self.model.rsplit('.', 1)
-    if not len(import_dict) == 2:
-      raise InvalidModelName('Model could not be imported (is it fully qualified?).')
-    return getattr(__import__(import_dict[0], fromlist=[import_dict[1]]), import_dict[1])
-
-  def __unicode__(self):
-    return '%s %ss' % (dict(Rule.ACTIONS)[self.action], self.model)
-
-class Field(models.Model):
-  name = models.CharField(max_length=255)
   rule = models.ForeignKey(Rule)
+  field = models.ForeignKey(Field)
 
-  def is_valid_for_rule(self):
-    return self.rule.action in [Rule.READ, Rule.UPDATE]
+  def is_create(self):
+    return self.action == CREATE
 
-  def is_field(self):
-    return self.name in map(lambda x: x.name, self.rule.get_class()._meta.fields)
+  def is_read(self):
+    return self.action == READ
 
-  def __unicode__(self):
-    return '%s %s\'s %s' % (self.rule.action, self.rule.model, self.name)
+  def is_update(self):
+    return self.action == UPDATE
 
-class Token(models.Model):
-  token = models.CharField(max_length=40)
-  expires = models.DateTimeField()
-  user = models.ForeignKey(User) # user performing action
-  rule = models.ForeignKey(Rule)
-
-  def __create_token(self):   # use on save if no token assigned
-    self.token = sha1(str(datetime.now()) + str(random())).hexdigest()
-
-  def __set_expiration(self): # use on save if no expiration assigned
-    self.expires = datetime.now() + app_settings.DEFAULT_EXPIRATION
-
-  def __allow_perform(self, member):
-    if member:
-      return member in map(lambda x: x.name, Field.objects.filter(rule=self.rule))
-    return True
-
-  def can_create(self, model):
-    return self.rule.action == Rule.CREATE and self.rule.get_class() == model
-
-  def can_read(self, model, member=None):
-    return self.rule.action == Rule.READ and self.rule.get_class() == model and self.__allow_perform(member)
-
-  def can_udpate(self, model, member=None):
-    return self.rule.action == Rule.UPDATE and self.rule.get_class() == model and self.__allow_perform(member)
-
-  def can_delete(self, model):
-    return self.rule.action == Rule.DELETE and self.rule.get_class() == model
-
-  def save(self, *args, **kwargs):
-    if not self.token:
-      self.__create_token()
-    if not self.expires:
-      self.__set_expiration()
-    super(Token, self).save(*args, **kwargs)
+  def is_delete(self):
+    return self.action == DELETE
 
   def __unicode__(self):
-    return 'Token %s for user %s defined by rule \'%s\' expires on %s' % (self.token, self.user, self.rule, self.expires)
+    return dict(ACTIONS)[action]
