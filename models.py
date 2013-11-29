@@ -25,16 +25,17 @@ class Token(models.Model):
     return any(r.can_create(model, field) for r in Rule.objects.filter(token=self))
 
   def can_read(self, model, field=None):
-    return any(r.can_create(model, field) for r in Rule.objects.filter(token=self))
+    return any(r.can_read(model, field) for r in Rule.objects.filter(token=self))
 
   def can_udpate(self, model, field=None):
-    return any(r.can_create(model, field) for r in Rule.objects.filter(token=self))
+    return any(r.can_update(model, field) for r in Rule.objects.filter(token=self))
 
   def can_delete(self, model, field=None):
-    return any(r.can_create(model, field) for r in Rule.objects.filter(token=self))
+    return any(r.can_delete(model, field) for r in Rule.objects.filter(token=self))
 
 
   def save(self, *args, **kwargs):
+    # full_clean?
     if not self.token:
       self.__create_token()
     if not self.expires:
@@ -53,24 +54,23 @@ class Rule(models.Model):
 
   def can_create(self, model, field=None):
     if field:
-      return any(field.can_create() for field in Field.objects.filter(rule=self).filter(name=field))
-    return self.rule.get_class() == model and any(a.is_create() for a in Action.objects.filter(rule=self))
+      return any(f.can_create() for f in Field.objects.filter(rule=self).filter(name=field))
+    return self.get_class() == model and any(a.is_create() for a in Action.objects.filter(rule=self))
 
   def can_read(self, model, field=None):
     if field:
-      return any(field.can_read() for field in field.objects.filter(rule=self).filter(name=field))
-    return self.rule.get_class() == model and any(a.is_read() for a in Action.objects.filter(rule=self))
+      return any(f.can_read() for f in Field.objects.filter(rule=self).filter(name=field))
+    return self.get_class() == model and any(a.is_read() for a in Action.objects.filter(rule=self))
 
   def can_udpate(self, model, field=None):
     if field:
-      return any(field.can_update() for field in field.objects.filter(rule=self).filter(name=field))
-    return self.rule.get_class() == model and any(a.is_update() for a in Action.objects.filter(rule=self))
+      return any(f.can_update() for field in Field.objects.filter(rule=self).filter(name=field))
+    return self.get_class() == model and any(a.is_update() for a in Action.objects.filter(rule=self))
 
   def can_delete(self, model, field=None):
     if field:
-      return any(field.can_delete() for field in field.objects.filter(rule=self).filter(name=field))
-    return self.rule.get_class() == model and any(a.is_delete() for a in Action.objects.filter(rule=self))
-
+      return any(f.can_delete() for field in Field.objects.filter(rule=self).filter(name=field))
+    return self.get_class() == model and any(a.is_delete() for a in Action.objects.filter(rule=self))
 
   def is_class(self):
     return isinstance(self.get_class(), type)
@@ -81,6 +81,10 @@ class Rule(models.Model):
     if not len(import_dict) == 2:
       raise InvalidModelName('Model could not be imported (is it fully qualified?).')
     return getattr(__import__(import_dict[0], fromlist=[import_dict[1]]), import_dict[1])
+
+  def save(self, *args, **kwargs):
+    # full_clean?
+    super(Rule, self).save(*args, **kwargs)
 
   def __unicode__(self):
     return 'Rule for %s (%s)' % (self.model, ', '.join(unicode(a) for a in Action.objects.filter(rule=self)))
@@ -103,6 +107,10 @@ class Field(models.Model):
 
   def is_field(self):
     return self.name in map(lambda x: x.name, self.rule.get_class()._meta.fields)
+
+  def save(self, *args, **kwargs):
+    # full_clean?
+    super(Field, self).save(*args, **kwargs)
 
   def __unicode__(self):
     return 'Field %s (%s)' % (self.name, ', '.join(unicode(a) for a in Action.objects.filter(field=self)))
@@ -141,6 +149,10 @@ class Action(models.Model):
 
   def is_delete(self):
     return self.action == Action.DELETE
+
+  def save(self, *args, **kwargs):
+    # full_clean?
+    super(Action, self).save(*args, **kwargs)
 
   def __unicode__(self):
     return dict(Action.ACTIONS)[self.action]

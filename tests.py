@@ -62,8 +62,9 @@ class ActionTokenTests(TestCase):
     action.rule = rule
     action.save()
     self.assertTrue(action.has_valid_target())
+    self.assertTrue(token.can_read(User))
 
-    print '\nTest Rule-Action Creation'
+    print '\nTest Rule-Action (Read) Creation'
     print unicode(token)
     print unicode(rule)
     print unicode(action)
@@ -83,8 +84,9 @@ class ActionTokenTests(TestCase):
     action.field = field
     action.save()
     self.assertTrue(action.has_valid_target())
+    self.assertTrue(token.can_read(User, 'username'))
 
-    print '\nTest Field-Action Creation'
+    print '\nTest Field-Action (Read) Creation'
     print unicode(token)
     print unicode(rule)
     print unicode(field)
