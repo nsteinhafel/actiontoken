@@ -1,6 +1,6 @@
 todo:
 - allow Rule groups rather than a 1-to-1 Token-to-Rule relationship
-- refactor Actions out of Rules to allow them to be easily applied at Field leve
+- refactor Actions out of Rules to allow them to be easily applied at Field level
 - check fields (if any) and permissions (on model save?)
   . C -> None to Something
   . R -> (can we really validate this w/out implementer's action?)
@@ -8,3 +8,4 @@ todo:
   . D -> Something -> None
 - add optional primary key for entity on Rule that is checked on read/update/delete (should throw error on create) to only give access to one object
   . None here gives full control over model?
+- actiontoken-sample Django project
