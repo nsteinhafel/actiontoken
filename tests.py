@@ -9,6 +9,8 @@ class ActionTokenTests(TestCase):
   def test_token_create_simple(self):
     token = Token.objects.create(
       user=User.objects.create(username='TEST'),)
+    print '\nTest Token Creation'
+    print unicode(token)
     self.assertTrue(token)
     self.assertTrue(token.token)
     self.assertTrue(token.expires)
@@ -19,6 +21,9 @@ class ActionTokenTests(TestCase):
     rule = Rule.objects.create(
       model='%s.%s' % (User.__module__, User.__name__),
       token=token)
+    print '\nTest Rule Creation'
+    print unicode(token)
+    print unicode(rule)
     self.assertTrue(rule)
     self.assertTrue(rule.is_class())
 
@@ -31,6 +36,10 @@ class ActionTokenTests(TestCase):
     field = Field.objects.create(
       name='username',
       rule=rule)
+    print '\nTest Field Creation'
+    print unicode(token)
+    print unicode(rule)
+    print unicode(field)
     self.assertTrue(field)
     self.assertTrue(field.is_field())
 

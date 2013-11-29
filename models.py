@@ -10,7 +10,8 @@ import app_settings
 class Token(models.Model):
   token = models.CharField(max_length=40)
   expires = models.DateTimeField()
-  user = models.ForeignKey(User) # user performing action
+  # user performing action
+  user = models.ForeignKey(User)
   
   # use on save if no token assigned
   def __create_token(self):
@@ -41,10 +42,7 @@ class Token(models.Model):
     super(Token, self).save(*args, **kwargs)
 
   def __unicode__(self):
-    return 'Token %s for user %s defined by rules \'%s\' expires on %s' % (self.token,
-      self.user, 
-      ' '.join(unicode(rule) for rule in Rule.objects.filter(token=self)),
-      self.expires)
+    return 'Token %s for user %s expires on %s' % (self.token, self.user, self.expires)
 
 class InvalidModelName(Exception):
   pass
@@ -56,22 +54,22 @@ class Rule(models.Model):
   def can_create(self, model, field=None):
     if field:
       return any(field.can_create() for field in Field.objects.filter(rule=self).filter(name=field))
-    return self.rule.get_class() == model and any(action.is_create() for action in Action.objects.filter(rule=self))
+    return self.rule.get_class() == model and any(a.is_create() for a in Action.objects.filter(rule=self))
 
   def can_read(self, model, field=None):
     if field:
       return any(field.can_read() for field in field.objects.filter(rule=self).filter(name=field))
-    return self.rule.get_class() == model and any(action.is_read() for action in Action.objects.filter(rule=self))
+    return self.rule.get_class() == model and any(a.is_read() for a in Action.objects.filter(rule=self))
 
   def can_udpate(self, model, field=None):
     if field:
       return any(field.can_update() for field in field.objects.filter(rule=self).filter(name=field))
-    return self.rule.get_class() == model and any(action.is_update() for action in action.objects.filter(rule=self))
+    return self.rule.get_class() == model and any(a.is_update() for a in Action.objects.filter(rule=self))
 
   def can_delete(self, model, field=None):
     if field:
       return any(field.can_delete() for field in field.objects.filter(rule=self).filter(name=field))
-    return self.rule.get_class() == model and any(action.is_delete() for action in action.objects.filter(rule=self))
+    return self.rule.get_class() == model and any(a.is_delete() for a in Action.objects.filter(rule=self))
 
 
   def is_class(self):
@@ -85,31 +83,31 @@ class Rule(models.Model):
     return getattr(__import__(import_dict[0], fromlist=[import_dict[1]]), import_dict[1])
 
   def __unicode__(self):
-    return '%s' % self.model
+    return 'Rule %s (%s)' % (self.model, ', '.join(unicode(a) for a in Action.objects.filter(rule=self)))
 
 class Field(models.Model):
   name = models.TextField()
   rule = models.ForeignKey(Rule)
 
   def can_create(self):
-    return any(action.is_create() for action in Action.objects.filter(field=self))
+    return any(a.is_create() for a in Action.objects.filter(field=self))
 
   def can_read(self):
-    return any(action.is_read() for action in Action.objects.filter(field=self))
+    return any(a.is_read() for a in Action.objects.filter(field=self))
 
   def can_udpate(self):
-    return any(action.is_update() for action in action.objects.filter(field=self))
+    return any(a.is_update() for a in Action.objects.filter(field=self))
 
   def can_delete(self):
-    return any(action.is_delete() for action in action.objects.filter(field=self))
+    return any(a.is_delete() for a in Action.objects.filter(field=self))
 
   def is_field(self):
     return self.name in map(lambda x: x.name, self.rule.get_class()._meta.fields)
 
   def __unicode__(self):
-    return 'field(%s on %s)' % (' '.join(unicode(action) for action in action.objects.filter(field=self)), self.name)
+    return 'Field %s (%s)' % (self.name, ', '.join(unicode(a) for a in Action.objects.filter(field=self)))
 
-class Action():
+class Action(models.Model):
   CREATE  = 'C'
   READ    = 'R'
   UPDATE  = 'U'
