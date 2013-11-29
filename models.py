@@ -5,21 +5,20 @@ from random import random
 from django.contrib.auth.models import User
 from django.db import models
 
+from actiontoken.exceptions import InvalidModelName, InvalidActionTarget
+
 import app_settings
 
 class Token(models.Model):
-  token = models.CharField(max_length=40)
-  expires = models.DateTimeField()
-  # user performing action
-  user = models.ForeignKey(User)
-  
-  # use on save if no token assigned
-  def __create_token(self):
-    self.token = sha1(str(datetime.now()) + str(random())).hexdigest()
+  def __create_token():
+    return sha1(str(datetime.now()) + str(random())).hexdigest()
 
-  # use on save if no expiration assigned
-  def __set_expiration(self):
-    self.expires = datetime.now() + app_settings.DEFAULT_EXPIRATION
+  def __create_expires():
+    return datetime.now() + app_settings.DEFAULT_EXPIRATION
+
+  token = models.CharField(max_length=40, default=__create_token)
+  expires = models.DateTimeField(default=__create_expires)
+  user = models.ForeignKey(User, blank=True, null=True)
 
   def can_create(self, model, field=None):
     return any(r.can_create(model, field) for r in Rule.objects.filter(token=self))
@@ -33,20 +32,12 @@ class Token(models.Model):
   def can_delete(self, model, field=None):
     return any(r.can_delete(model, field) for r in Rule.objects.filter(token=self))
 
-
   def save(self, *args, **kwargs):
-    # full_clean?
-    if not self.token:
-      self.__create_token()
-    if not self.expires:
-      self.__set_expiration()
+    self.full_clean()
     super(Token, self).save(*args, **kwargs)
 
   def __unicode__(self):
     return 'Token %s for user %s expires on %s' % (self.token, self.user, self.expires)
-
-class InvalidModelName(Exception):
-  pass
 
 class Rule(models.Model):
   model = models.TextField()
@@ -83,7 +74,7 @@ class Rule(models.Model):
     return getattr(__import__(import_dict[0], fromlist=[import_dict[1]]), import_dict[1])
 
   def save(self, *args, **kwargs):
-    # full_clean?
+    self.full_clean()
     super(Rule, self).save(*args, **kwargs)
 
   def __unicode__(self):
@@ -109,7 +100,7 @@ class Field(models.Model):
     return self.name in map(lambda x: x.name, self.rule.get_class()._meta.fields)
 
   def save(self, *args, **kwargs):
-    # full_clean?
+    self.full_clean()
     super(Field, self).save(*args, **kwargs)
 
   def __unicode__(self):
@@ -134,7 +125,6 @@ class Action(models.Model):
   def has_valid_action(self):
     return self.action in [a[0] for a in Action.ACTIONS]
 
-  # there can only be one target and action must have a target
   def has_valid_target(self):
     return (self.rule != None) != (self.field != None)
 
@@ -150,8 +140,12 @@ class Action(models.Model):
   def is_delete(self):
     return self.action == Action.DELETE
 
+  def clean(self):
+    if not self.has_valid_target():
+      raise InvalidActionTarget('Action %s has no valid target.' % unicode(self))
+
   def save(self, *args, **kwargs):
-    # full_clean?
+    self.full_clean()
     super(Action, self).save(*args, **kwargs)
 
   def __unicode__(self):

@@ -10,3 +10,4 @@ todo:
 - add optional primary key for entity on Rule that is checked on read/update/delete (should throw error on create) to only give access to one object
   . None here gives full control over model?
 - actiontoken-sample Django project
+- allow actions to be taken w/out a user

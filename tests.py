@@ -1,7 +1,9 @@
 from django.contrib.auth.models import User
 from django.test import TestCase
 
+from actiontoken.exceptions import InvalidModelName, InvalidActionTarget
 from actiontoken.models import Token, Rule, Field, Action
+
 import app_settings
 
 class ActionTokenTests(TestCase): 
@@ -56,11 +58,10 @@ class ActionTokenTests(TestCase):
     rule = Rule.objects.create(
       model='%s.%s' % (User.__module__, User.__name__),
       token=token)
-    action = Action.objects.create()
+    action = Action.objects.create(
+      rule=rule)
+
     self.assertTrue(action.has_valid_action())
-    self.assertFalse(action.has_valid_target())
-    action.rule = rule
-    action.save()
     self.assertTrue(action.has_valid_target())
     self.assertTrue(token.can_read(User))
 
@@ -78,11 +79,9 @@ class ActionTokenTests(TestCase):
     field = Field.objects.create(
       name='username',
       rule=rule)
-    action = Action.objects.create()
+    action = Action.objects.create(
+      field=field)
     self.assertTrue(action.has_valid_action())
-    self.assertFalse(action.has_valid_target())
-    action.field = field
-    action.save()
     self.assertTrue(action.has_valid_target())
     self.assertTrue(token.can_read(User, 'username'))
 
@@ -106,6 +105,13 @@ class ActionTokenTests(TestCase):
     self.assertTrue(action.has_valid_target())
     action.rule = rule
     self.assertFalse(action.has_valid_target())
+
+    try:
+      action.save()
+      self.fail()
+    except InvalidActionTarget:
+      pass
+      
     action.rule = None
     self.assertTrue(action.has_valid_target())
 
