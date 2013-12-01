@@ -11,3 +11,4 @@ todo:
   . None here gives full control over model?
 - actiontoken-sample Django project
 - allow actions to be taken w/out a user
+- cleaner way to set model
